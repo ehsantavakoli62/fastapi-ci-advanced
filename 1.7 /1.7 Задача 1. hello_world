@@ -1,0 +1,27 @@
+# Task 1. /hello_world 
+
+from flask import Flask
+
+# Create an instance of the Flask application
+# یک نمونه از برنامه Flask ایجاد کنید
+app = Flask(__name__)
+
+@app.route('/hello_world')
+def hello_world():
+    """
+    Renders a simple greeting message.
+    This function handles requests to the '/hello_world' URL.
+    
+    یک پیام خوش‌آمدگویی ساده را نمایش می‌دهد.
+    این تابع درخواست‌ها را برای آدرس URL '/hello_world' مدیریت می‌کند.
+    """
+    return "Привет, мир!" # The required Russian greeting / پیام خوش‌آمدگویی روسی درخواستی
+
+if __name__ == '__main__':
+    # Run the Flask application
+    # Debug mode is useful for development as it provides more detailed errors
+    # and automatically reloads the server on code changes.
+    # برنامه Flask را اجرا کنید
+    # حالت اشکال‌زدایی (Debug mode) برای توسعه مفید است زیرا خطاهای دقیق‌تری را فراهم می‌کند
+    # و به طور خودکار سرور را هنگام تغییرات کد بارگذاری مجدد می‌کند.
+    app.run(debug=True)
