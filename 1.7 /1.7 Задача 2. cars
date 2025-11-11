@@ -1,0 +1,33 @@
+#Задача  2. cars
+
+
+# Task 2. /cars / Задача 2. /cars
+
+from flask import Flask
+
+# Create an instance of the Flask application
+# یک نمونه از برنامه Flask ایجاد کنید
+app = Flask(__name__)
+
+# List of cars (global scope) / لیست خودروها (محدوده سراسری)
+# This list is created only once when the application starts.
+# این لیست تنها یک بار هنگام شروع برنامه ایجاد می‌شود.
+CARS = ["Chevrolet", "Renault", "Ford", "Lada"]
+
+@app.route('/cars')
+def list_cars():
+    """
+    Renders a comma-separated list of cars.
+    This function handles requests to the '/cars' URL.
+    
+    یک لیست از خودروها را که با کاما جدا شده‌اند، نمایش می‌دهد.
+    این تابع درخواست‌ها را برای آدرس URL '/cars' مدیریت می‌کند.
+    """
+    # Join the list of cars into a single string, separated by ", "
+    # لیست خودروها را به یک رشته واحد، جدا شده با ", "، متصل می‌کند
+    return ", ".join(CARS)
+
+if __name__ == '__main__':
+    # Run the Flask application in debug mode
+    # برنامه Flask را در حالت اشکال‌زدایی اجرا کنید
+    app.run(debug=True)
