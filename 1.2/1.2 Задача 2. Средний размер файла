@@ -1,0 +1,102 @@
+#  Задача 2. Средний размер файла
+
+import sys
+import os
+from typing import List, Tuple
+
+def get_mean_size(ls_output_lines: List[str]) -> str:
+    """
+    Calculates the average file size from a list of 'ls -l' output lines.
+    It skips the header line and any lines that do not represent regular files.
+    
+    میانگین اندازه فایل را از لیستی از خطوط خروجی 'ls -l' محاسبه می‌کند.
+    این تابع خط سربرگ و هر خطی را که نشان‌دهنده فایل‌های معمولی نیست، نادیده می‌گیرد.
+
+    Args:
+        ls_output_lines (List[str]): A list of strings, where each string is a line
+                                     from the 'ls -l' command output.
+        لیستی از رشته‌ها که هر رشته یک خط از خروجی دستور 'ls -l' است.
+
+    Returns:
+        str: A string representing the average file size, or an appropriate message
+             if no files are found or sizes cannot be determined.
+        یک رشته که میانگین اندازه فایل را نشان می‌دهد، یا یک پیام مناسب
+        اگر فایلی یافت نشود یا اندازه‌ها قابل تعیین نباشند.
+    """
+    total_size: int = 0
+    file_count: int = 0
+
+    # Skip the header line (first line) / خط سربرگ (اولین خط) را نادیده بگیرید
+    for line in ls_output_lines[1:]: 
+        columns = line.split()
+        # A typical 'ls -l' output line for a regular file starts with '-'
+        # and has at least 5 columns for size (index 4)
+        # یک خط خروجی 'ls -l' معمولی برای یک فایل معمولی با '-' شروع می‌شود
+        # و حداقل 5 ستون برای اندازه (ایندکس 4) دارد
+        if len(columns) >= 5 and columns[0].startswith('-') and columns[4].isdigit():
+            try:
+                size = int(columns[4])
+                total_size += size
+                file_count += 1
+            except ValueError:
+                # Should not happen if columns[4].isdigit() is true, but good practice
+                # اگر columns[4].isdigit() درست باشد، نباید اتفاق بیفتد، اما یک عمل خوب است
+                pass # Ignore lines where size cannot be parsed / خطوطی که اندازه قابل تجزیه نیست را نادیده بگیرید
+    
+    if file_count == 0:
+        return "No files found or sizes could not be determined."
+        # فایلی یافت نشد یا اندازه‌ها قابل تعیین نبودند.
+    
+    mean_size = total_size / file_count
+    return f"Average file size: {mean_size:.2f} bytes."
+    # میانگین اندازه فایل: {mean_size:.2f} بایت.
+
+if __name__ == '__main__':
+    # --- Example 1: Simulate input from 'ls -l' for a directory with files ---
+    # --- مثال 1: شبیه‌سازی ورودی از 'ls -l' برای یک دایرکتوری با فایل‌ها ---
+    print("--- Simulating 'ls -l' output with files ---")
+    simulated_ls_output = """total 8
+-rw-r--r-- 1 user group 1024 Jan  1 10:00 file1.txt
+-rw-r--r-- 1 user group 2048 Jan  1 10:05 another_file.log
+drwxr-xr-x 2 user group 4096 Jan  1 10:10 my_dir
+-rwxr-xr-x 1 user group  512 Jan  1 10:15 executable_script.sh
+"""
+    # For actual execution via pipe, sys.stdin.readlines() would be used.
+    # For demonstration, we convert the string to a list of lines.
+    # برای اجرای واقعی از طریق پایپ، sys.stdin.readlines() استفاده می‌شود.
+    # برای نمایش، رشته را به لیستی از خطوط تبدیل می‌کنیم.
+    lines_from_pipe = simulated_ls_output.splitlines(keepends=True)
+    mean_size_result = get_mean_size(lines_from_pipe)
+    print(mean_size_result)
+
+    # --- Example 2: Simulate input from 'ls -l' for an empty directory ---
+    # --- مثال 2: شبیه‌سازی ورودی از 'ls -l' برای یک دایرکتوری خالی ---
+    print("\n--- Simulating 'ls -l empty_dir/' output ---")
+    simulated_empty_ls_output = """total 0
+"""
+    lines_from_empty_pipe = simulated_empty_ls_output.splitlines(keepends=True)
+    mean_size_empty_result = get_mean_size(lines_from_empty_pipe)
+    print(mean_size_empty_result)
+
+    # --- Example 3: Demonstrate actual pipe usage (requires running from terminal) ---
+    # --- مثال 3: نمایش استفاده واقعی از پایپ (نیاز به اجرا از ترمینال دارد) ---
+    # To test this, save the code as get_mean_size.py and run in terminal:
+    # $ ls -l | python3 get_mean_size.py
+    # $ mkdir temp_empty_dir
+    # $ ls -l temp_empty_dir/ | python3 get_mean_size.py
+    # $ rm -rf temp_empty_dir
+
+    print("\n--- To test with actual pipe (run in terminal): ---")
+    print("$ ls -l | python3 get_mean_size.py")
+    print("$ mkdir temp_empty_dir")
+    print("$ ls -l temp_empty_dir/ | python3 get_mean_size.py")
+    print("$ rm -rf temp_empty_dir")
+
+    # If the script is executed directly without pipe, sys.stdin.readlines()
+    # will wait for user input. For automatic testing, use the simulated input above.
+    # اگر اسکریپت بدون پایپ مستقیماً اجرا شود، sys.stdin.readlines()
+    # منتظر ورودی کاربر خواهد بود. برای تست خودکار، از ورودی شبیه‌سازی شده بالا استفاده کنید.
+    # When testing with actual pipe:
+    # actual_lines = sys.stdin.readlines()
+    # actual_mean_size = get_mean_size(actual_lines)
+    # print(actual_mean_size)
