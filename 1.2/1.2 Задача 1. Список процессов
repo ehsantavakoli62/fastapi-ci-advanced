@@ -1,0 +1,141 @@
+# Задача 1. Список процессов
+
+import os
+from typing import TextIO
+
+# Define the file path for the ps aux output / مسیر فایل برای خروجی ps aux را تعریف کنید
+OUTPUT_FILE_PATH: str = 'output_file.txt'
+
+def convert_bytes_to_human_readable(size_bytes: int) -> str:
+    """
+    Converts a size in bytes to a human-readable format (B, KiB, MiB, GiB, etc.).
+    
+    اندازه را از بایت به فرمت قابل خواندن برای انسان (B, KiB, MiB, GiB و غیره) تبدیل می‌کند.
+
+    Args:
+        size_bytes (int): The size in bytes.
+        اندازه بر حسب بایت.
+
+    Returns:
+        str: The human-readable string representation of the size.
+        نمایش رشته‌ای قابل خواندن برای انسان از اندازه.
+    """
+    if size_bytes == 0:
+        return "0 B"
+
+    # Units for human-readable format / واحدهای فرمت قابل خواندن برای انسان
+    units: list[str] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"]
+    
+    # Calculate the exponent (log base 1024) / توان (لگاریتم در مبنای 1024) را محاسبه کنید
+    power: int = 0
+    while size_bytes >= 1024 and power < len(units) - 1:
+        size_bytes /= 1024
+        power += 1
+    
+    # Format the result with one decimal place for larger units / نتیجه را با یک رقم اعشار برای واحدهای بزرگتر قالب‌بندی کنید
+    return f"{size_bytes:.0f} {units[power]}" if power == 0 else f"{size_bytes:.1f} {units[power]}"
+
+
+def get_summary_rss(file_path: str) -> str:
+    """
+    Reads the output of 'ps aux' from a file, calculates the total RSS memory
+    consumed by all processes, and returns it in a human-readable format.
+    
+    خروجی 'ps aux' را از یک فایل می‌خواند، کل حافظه RSS مصرف شده توسط تمام فرآیندها را
+    محاسبه می‌کند و آن را در یک فرمت قابل خواندن برای انسان برمی‌گرداند.
+
+    Args:
+        file_path (str): The path to the file containing the 'ps aux' output.
+        مسیر فایل حاوی خروجی 'ps aux'.
+
+    Returns:
+        str: The total RSS memory in a human-readable format (e.g., "10.5 MiB").
+        کل حافظه RSS در یک فرمت قابل خواندن برای انسان (مانند "10.5 MiB").
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        FileNotFoundError: اگر فایل مشخص شده وجود نداشته باشد.
+    """
+    total_rss_bytes: int = 0
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as output_file:
+            # Skip the header line / خط سربرگ را نادیده بگیرید
+            lines = output_file.readlines()[1:]
+            
+            for line in lines:
+                columns = line.split()
+                # RSS is typically the 5th column (index 4) / RSS معمولاً ستون 5 (ایندکس 4) است
+                if len(columns) > 5 and columns[4].isdigit():
+                    rss_kb = int(columns[4])
+                    total_rss_bytes += rss_kb * 1024 # Convert KiB to bytes / KiB را به بایت تبدیل کنید
+                    
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Error: The file '{file_path}' was not found.")
+        # خطا: فایل '{file_path}' یافت نشد.
+    except IndexError:
+        print(f"Warning: Skipping malformed line in '{file_path}'.")
+        # هشدار: نادیده گرفتن خط خراب در '{file_path}'.
+    except ValueError:
+        print(f"Warning: Could not parse RSS value in '{file_path}'.")
+        # هشدار: نتوانست مقدار RSS را در '{file_path}' تجزیه کند.
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        # یک خطای غیرمنتظره رخ داد:
+
+    return convert_bytes_to_human_readable(total_rss_bytes)
+
+if __name__ == '__main__':
+    # --- Create a dummy ps aux output file for testing ---
+    # --- ایجاد یک فایل خروجی ps aux ساختگی برای تست ---
+    dummy_content = """USER        PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root          1  0.0  0.0 168060  6908 ?        Ss   09:30   0:01 /sbin/init
+user     1234  0.1  0.5 450000 50000 ?        Sl   09:35   0:10 /usr/bin/python3
+user     5678  0.0  0.1 200000 10000 ?        S    09:40   0:05 /bin/bash
+root     9012  0.0  0.0 100000  500 ?        S    09:45   0:00 /usr/bin/some_service
+""" # Total RSS: 6908 + 50000 + 10000 + 500 = 67408 KiB
+
+    # Create the dummy file / فایل ساختگی را ایجاد کنید
+    with open(OUTPUT_FILE_PATH, 'w', encoding='utf-8') as f:
+        f.write(dummy_content)
+    
+    print(f"Processing file: {OUTPUT_FILE_PATH}")
+    # در حال پردازش فایل:
+    try:
+        summary_rss = get_summary_rss(OUTPUT_FILE_PATH)
+        print(f"Total RSS memory consumed: {summary_rss}")
+        # کل حافظه RSS مصرف شده:
+    except FileNotFoundError as e:
+        print(e)
+    
+    # Clean up the dummy file / فایل ساختگی را پاکسازی کنید
+    if os.path.exists(OUTPUT_FILE_PATH):
+        os.remove(OUTPUT_FILE_PATH)
+        print(f"Cleaned up dummy file: {OUTPUT_FILE_PATH}")
+        # فایل ساختگی پاکسازی شد:
+    
+    # --- Test with an empty file ---
+    # --- تست با یک فایل خالی ---
+    EMPTY_FILE_PATH = 'empty_ps_output.txt'
+    with open(EMPTY_FILE_PATH, 'w', encoding='utf-8') as f:
+        f.write("USER        PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n") # Just header
+    print(f"\nProcessing empty file: {EMPTY_FILE_PATH}")
+    try:
+        summary_rss_empty = get_summary_rss(EMPTY_FILE_PATH)
+        print(f"Total RSS memory consumed (empty file): {summary_rss_empty}")
+    except FileNotFoundError as e:
+        print(e)
+    if os.path.exists(EMPTY_FILE_PATH):
+        os.remove(EMPTY_FILE_PATH)
+
+    # --- Test with a non-existent file ---
+    # --- تست با یک فایل ناموجود ---
+    print("\nProcessing non-existent file:")
+    try:
+        get_summary_rss("non_existent_file.txt")
+    except FileNotFoundError as e:
+        print(e)
+
+
+
+
