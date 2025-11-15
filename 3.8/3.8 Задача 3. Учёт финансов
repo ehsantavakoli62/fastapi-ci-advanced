@@ -1,0 +1,194 @@
+#  Задача 3. Учёт финансов
+
+import unittest
+from flask import Flask
+import json # Not strictly needed for the current app, but good for Flask test client if JSON responses were expected
+import sys
+import os
+from typing import Dict, Any
+
+# Assuming finance_app.py (containing the Flask app and financial_storage) is importable.
+# If its path is different, adjust this import.
+try:
+    # Attempt to import from the previous module's structure
+    from Module25.task7.main import app, financial_storage
+except ImportError:
+    print("Warning: Could not import Flask app and financial_storage from Module25.task7.main. Using local fallback.")
+    print("هشدار: نتوانستم برنامه Flask و financial_storage را از Module25.task7.main وارد کنم. از بازگشت محلی استفاده می‌کنم.")
+
+    # Fallback for local testing if the module structure is not as expected
+    app = Flask(__name__)
+    financial_storage: Dict[int, Dict[int, int]] = {}
+
+    @app.route('/add/<string:date_str>/<int:number>')
+    def add_expense(date_str: str, number: int) -> str:
+        try:
+            year = int(date_str[0:4])
+            month = int(date_str[4:6])
+            
+            if year not in financial_storage:
+                financial_storage[year] = {}
+            
+            financial_storage[year][month] = financial_storage[year].get(month, 0) + number
+            
+            return f"Расход {number} руб. добавлен за {date_str}."
+
+        except (ValueError, IndexError):
+            return f"Ошибка: Неправильный формат даты {date_str}."
+
+    @app.route('/calculate/<int:year>')
+    def calculate_year_expenses(year: int) -> str:
+        total_yearly_expense: int = 0
+        if year in financial_storage:
+            for month_expense in financial_storage[year].values():
+                total_yearly_expense += month_expense
+        
+        return f"Суммарные траты за {year} год: {total_yearly_expense} руб."
+
+    @app.route('/calculate/<int:year>/<int:month>')
+    def calculate_month_expenses(year: int, month: int) -> str:
+        total_monthly_expense: int = 0
+        if year in financial_storage and month in financial_storage[year]:
+            total_monthly_expense = financial_storage[year][month]
+        
+        return f"Суммарные траты за {month:02d}.{year} год: {total_monthly_expense} руб."
+
+
+class TestFinanceApp(unittest.TestCase):
+    """
+    Tests for the Financial Accounting Flask application.
+    
+    تست‌هایی برای برنامه Flask حسابداری مالی.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """
+        Set up the Flask test client and initial data for all tests.
+        
+        کلاینت تست Flask و داده‌های اولیه را برای تمام تست‌ها راه‌اندازی کنید.
+        """
+        cls.app = app.test_client()
+        cls.app.testing = True
+
+    def setUp(self) -> None:
+        """
+        Reset financial_storage before each test to ensure test isolation.
+        
+        financial_storage را قبل از هر تست بازنشانی کنید تا از ایزولاسیون تست اطمینان حاصل شود.
+        """
+        financial_storage.clear()
+        # Populate with some initial data / با برخی داده‌های اولیه پر کنید
+        financial_storage.update({
+            2023: {
+                1: 100,
+                2: 150,
+                3: 50
+            },
+            2024: {
+                1: 200,
+                2: 250
+            }
+        })
+
+    def test_add_expense_valid_date(self) -> None:
+        """
+        Tests the /add/ endpoint with valid date and number.
+        Ensures the expense is correctly added and aggregated.
+        
+        endpoint /add/ را با تاریخ و عدد معتبر تست می‌کند.
+        اطمینان حاصل می‌کند که هزینه به درستی اضافه شده و جمع‌آوری شده است.
+        """
+        response = self.app.get('/add/20230125/75')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Расход 75 руб. добавлен за 20230125.", response.data.decode('utf-8'))
+        self.assertEqual(financial_storage[2023][1], 100 + 75) # Check aggregation / جمع‌آوری را بررسی کنید
+
+        response = self.app.get('/add/20250701/500')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Расход 500 руб. добавлен за 20250701.", response.data.decode('utf-8'))
+        self.assertEqual(financial_storage[2025][7], 500) # Check new entry / ورودی جدید را بررسی کنید
+
+    def test_add_expense_invalid_date_format(self) -> None:
+        """
+        Tests the /add/ endpoint with an invalid date format.
+        It should return an error message, and the storage should remain unchanged.
+        
+        endpoint /add/ را با قالب تاریخ نامعتبر تست می‌کند.
+        باید یک پیام خطا برگرداند و storage باید بدون تغییر باقی بماند.
+        """
+        initial_storage_copy = financial_storage.copy() # Make a copy to verify no changes / یک کپی برای تأیید عدم تغییر ایجاد کنید
+        
+        response = self.app.get('/add/2023-01-25/75') # Invalid format / قالب نامعتبر
+        self.assertEqual(response.status_code, 200) # Flask still returns 200 for valid routes, app handles error
+                                                   # Flask همچنان 200 را برای مسیرهای معتبر برمی‌گرداند، برنامه خطا را مدیریت می‌کند
+        self.assertIn("Ошибка: Неправильный формат даты 2023-01-25.", response.data.decode('utf-8'))
+        self.assertEqual(financial_storage, initial_storage_copy) # Storage should not change / storage نباید تغییر کند
+
+        response = self.app.get('/add/invalid_date/100')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Ошибка: Неправильный формат даты invalid_date.", response.data.decode('utf-8'))
+        self.assertEqual(financial_storage, initial_storage_copy)
+
+    def test_calculate_year_expenses(self) -> None:
+        """
+        Tests the /calculate/<year> endpoint for correct yearly totals.
+        
+        endpoint /calculate/<year> را برای مجموع سالانه صحیح تست می‌کند.
+        """
+        response_2023 = self.app.get('/calculate/2023')
+        self.assertEqual(response_2023.status_code, 200)
+        # 100 + 150 + 50 = 300
+        self.assertIn("Суммарные траты за 2023 год: 300 руб.", response_2023.data.decode('utf-8'))
+
+        response_2024 = self.app.get('/calculate/2024')
+        self.assertEqual(response_2024.status_code, 200)
+        # 200 + 250 = 450
+        self.assertIn("Суммарные траты за 2024 год: 450 руб.", response_2024.data.decode('utf-8'))
+
+    def test_calculate_year_expenses_empty_storage(self) -> None:
+        """
+        Tests /calculate/<year> when financial_storage is empty.
+        
+        /calculate/<year> را زمانی که financial_storage خالی است، تست می‌کند.
+        """
+        financial_storage.clear() # Empty the storage / storage را خالی کنید
+        response = self.app.get('/calculate/2023')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Суммарные траты за 2023 год: 0 руб.", response.data.decode('utf-8'))
+
+        response = self.app.get('/calculate/2025') # Non-existent year / سال ناموجود
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Суммарные траты за 2025 год: 0 руб.", response.data.decode('utf-8'))
+
+    def test_calculate_month_expenses(self) -> None:
+        """
+        Tests the /calculate/<year>/<month> endpoint for correct monthly totals.
+        
+        endpoint /calculate/<year>/<month> را برای مجموع ماهانه صحیح تست می‌کند.
+        """
+        response_2023_1 = self.app.get('/calculate/2023/1')
+        self.assertEqual(response_2023_1.status_code, 200)
+        self.assertIn("Суммарные траты за 01.2023 год: 100 руб.", response_2023_1.data.decode('utf-8'))
+
+        response_2024_2 = self.app.get('/calculate/2024/2')
+        self.assertEqual(response_2024_2.status_code, 200)
+        self.assertIn("Суммарные траты за 02.2024 год: 250 руб.", response_2024_2.data.decode('utf-8'))
+    
+    def test_calculate_month_expenses_non_existent(self) -> None:
+        """
+        Tests /calculate/<year>/<month> for non-existent months or years.
+        
+        /calculate/<year>/<month> را برای ماه‌ها یا سال‌های ناموجود تست می‌کند.
+        """
+        response_2023_4 = self.app.get('/calculate/2023/4') # Month 4 does not exist for 2023 / ماه 4 برای 2023 وجود ندارد
+        self.assertEqual(response_2023_4.status_code, 200)
+        self.assertIn("Суммарные траты за 04.2023 год: 0 руб.", response_2023_4.data.decode('utf-8'))
+
+        response_2025_1 = self.app.get('/calculate/2025/1') # Year 2025 does not exist / سال 2025 وجود ندارد
+        self.assertEqual(response_2025_1.status_code, 200)
+        self.assertIn("Суммарные траты за 01.2025 год: 0 руб.", response_2025_1.data.decode('utf-8'))
+    
+
+if __name__ == '__main__':
+    unittest.main(argv=['first-arg-is-ignored'], exit=False)
