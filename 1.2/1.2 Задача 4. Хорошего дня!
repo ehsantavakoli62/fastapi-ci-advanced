@@ -1,0 +1,69 @@
+#Задача 4. Хорошего дня!
+
+from flask import Flask
+from datetime import datetime
+import sys
+from typing import Dict, Tuple
+
+# Create an instance of the Flask application
+# یک نمونه از برنامه Flask ایجاد کنید
+app = Flask(__name__)
+
+# Optimal storage for weekdays in Russian (tuple for immutability and potential minor memory/performance benefits)
+# ذخیره‌سازی بهینه برای روزهای هفته به زبان روسی (تاپل برای عدم تغییر و مزایای جزئی احتمالی در حافظه/عملکرد)
+# 0: Monday, 1: Tuesday, ..., 6: Sunday
+# 0: دوشنبه، 1: سه‌شنبه، ..., 6: یکشنبه
+WEEKDAYS_RU: Tuple[str, ...] = (
+    "понедельника", # Monday / دوشنبه
+    "вторника",    # Tuesday / سه‌شنبه
+    "среды",       # Wednesday / چهارشنبه
+    "четверга",    # Thursday / پنج‌شنبه
+    "пятницы",     # Friday / جمعه
+    "субботы",     # Saturday / شنبه
+    "воскресенья"  # Sunday / یکشنبه
+)
+
+# You can uncomment this block to compare memory usage of different structures if needed
+# اگر نیاز دارید، می‌توانید این بلوک را برای مقایسه مصرف حافظه ساختارهای مختلف از کامنت خارج کنید
+# if __name__ == '__main__':
+#     weekdays_list = list(WEEKDAYS_RU)
+#     weekdays_dict = {i: day for i, day in enumerate(WEEKDAYS_RU)}
+#     
+#     print(f"Size of tuple: {sys.getsizeof(WEEKDAYS_RU)} bytes")
+#     print(f"Size of list: {sys.getsizeof(weekdays_list)} bytes")
+#     print(f"Size of dict: {sys.getsizeof(weekdays_dict)} bytes")
+
+
+@app.route('/hello-world/<string:name>')
+def hello_world_name(name: str) -> str:
+    """
+    Returns a greeting message including the provided name and a good wish
+    for the current day of the week in Russian.
+    
+    یک پیام خوش‌آمدگویی شامل نام داده شده و آرزوی خوب
+    برای روز فعلی هفته به زبان روسی برمی‌گرداند.
+
+    Args:
+        name (str): The name passed in the URL.
+        نامی که در URL پاس داده شده است.
+
+    Returns:
+        str: The greeting message.
+        پیام خوش‌آمدگویی.
+    """
+    # Get the current day of the week (0=Monday, 6=Sunday)
+    # روز هفته فعلی را دریافت کنید (0=دوشنبه، 6=یکشنبه)
+    current_weekday_index = datetime.today().weekday()
+    
+    # Get the Russian name for the current day / نام روسی روز فعلی را دریافت کنید
+    weekday_name_ru = WEEKDAYS_RU[current_weekday_index]
+    
+    # Construct the greeting message / پیام خوش‌آمدگویی را بسازید
+    return f"Привет, {name}. Хорошей {weekday_name_ru}!"
+    # "Hello, {name}. Have a good {weekday_name_ru}!"
+
+if __name__ == '__main__':
+    # Run the Flask application in debug mode / برنامه Flask را در حالت اشکال‌زدایی اجرا کنید
+    # To test: navigate to http://127.0.0.1:5000/hello-world/Саша
+    # برای تست: به آدرس http://127.0.0.1:5000/hello-world/Саша بروید
+    app.run(debug=True)
