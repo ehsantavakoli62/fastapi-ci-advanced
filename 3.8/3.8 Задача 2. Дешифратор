@@ -1,0 +1,120 @@
+#  Задача 2. Дешифратор
+
+import unittest
+import sys
+import os
+
+# Assuming decrypt_app.py (containing the decrypt function) is importable.
+# If its path is different, adjust this import.
+try:
+    from Module25.task3.main import decrypt
+except ImportError:
+    print("Warning: Could not import 'decrypt' function from Module25.task3.main. Using local fallback.")
+    print("هشدار: نتوانستم تابع 'decrypt' را از Module25.task3.main وارد کنم. از بازگشت محلی استفاده می‌کنم.")
+
+    # Fallback for local testing if the module structure is not as expected
+    # بازگشت برای تست محلی اگر ساختار ماژول طبق انتظار نباشد
+    def decrypt(encrypted_message: str) -> str:
+        decrypted_chars: list[str] = []
+        i = 0
+        while i < len(encrypted_message):
+            char = encrypted_message[i]
+
+            if char == '.':
+                if i == 0 or (i > 0 and (not decrypted_chars or decrypted_chars[-1] == '.')):
+                    i += 1
+                    continue
+                
+                if i + 1 < len(encrypted_message) and encrypted_message[i + 1] == '.':
+                    if decrypted_chars:
+                        decrypted_chars.pop()
+                    i += 2
+                else:
+                    i += 1
+            else:
+                decrypted_chars.append(char)
+                i += 1
+                
+        return "".join(decrypted_chars)
+
+
+class TestDecryptor(unittest.TestCase):
+    """
+    Tests for the decrypt function from Task 3 of Module 2.5.
+    Tests are grouped logically by dot rules and edge cases.
+    
+    تست‌هایی برای تابع decrypt از وظیفه 3 ماژول 2.5.
+    تست‌ها به صورت منطقی بر اساس قوانین نقطه و موارد مرزی گروه‌بندی شده‌اند.
+    """
+
+    def test_single_dot_rule(self) -> None:
+        """
+        Tests scenarios where single dots are present and should be removed.
+        
+        سناریوهایی را تست می‌کند که در آن نقاط تک وجود دارند و باید حذف شوند.
+        """
+        with self.subTest(msg="No dots"):
+            self.assertEqual(decrypt("абра-кадабра"), "абра-кадабра")
+        with self.subTest(msg="Single dot at end"):
+            self.assertEqual(decrypt("абра-кадабра."), "абра-кадабра")
+        with self.subTest(msg="Single dot in middle"):
+            self.assertEqual(decrypt("ab.c"), "abc")
+        with self.subTest(msg="Multiple single dots"):
+            self.assertEqual(decrypt("a.b.c."), "abc")
+
+    def test_double_dot_rule(self) -> None:
+        """
+        Tests scenarios where double dots trigger character removal.
+        
+        سناریوهایی را تست می‌کند که در آن نقاط دوگانه باعث حذف کاراکتر می‌شوند.
+        """
+        with self.subTest(msg="Simple double dot"):
+            self.assertEqual(decrypt("абраа..-кадабра"), "абра-кадабра")
+        with self.subTest(msg="Double dot removing hyphen"):
+            self.assertEqual(decrypt("абра--..кадабра"), "абра-кадабра")
+        with self.subTest(msg="Numbers with double dot"):
+            self.assertEqual(decrypt("1..2.3"), "23")
+        with self.subTest(msg="Double dot at start (should do nothing)"):
+            self.assertEqual(decrypt("..abc"), "abc")
+        with self.subTest(msg="Double dot after punctuation"):
+            self.assertEqual(decrypt("!a..b"), "!b")
+
+    def test_combined_rules(self) -> None:
+        """
+        Tests scenarios combining single and double dot rules.
+        
+        سناریوهایی را تست می‌کند که قوانین نقطه تکی و دوگانه را ترکیب می‌کنند.
+        """
+        with self.subTest(msg="Double then single"):
+            self.assertEqual(decrypt("абрау...-кадабра"), "абра-кадабра") # 'у' removed by '..', then '.' removed
+        with self.subTest(msg="Single then double"):
+            self.assertEqual(decrypt("абраа..-.кадабра"), "абра-кадабра") # 'а' removed by '..', then '.' removed
+        with self.subTest(msg="Complex removal"):
+            self.assertEqual(decrypt("abcde..f.g..h"), "abcdf.h") # 'e' removed, then '.' removed, then 'g' removed.
+
+    def test_edge_cases_and_empty_results(self) -> None:
+        """
+        Tests various edge cases, including empty strings and extensive removals.
+        
+        موارد مرزی مختلف را، از جمله رشته‌های خالی و حذف‌های گسترده، تست می‌کند.
+        """
+        with self.subTest(msg="Empty string input"):
+            self.assertEqual(decrypt(""), "")
+        with self.subTest(msg="Only single dot"):
+            self.assertEqual(decrypt("."), "")
+        with self.subTest(msg="Only double dot"):
+            self.assertEqual(decrypt(".."), "")
+        with self.subTest(msg="Extensive double dots, resulting in empty"):
+            self.assertEqual(decrypt("абра........"), "")
+        with self.subTest(msg="Extensive removal leaving one char"):
+            self.assertEqual(decrypt("абр......a."), "a")
+        with self.subTest(msg="Extensive removal leading to empty"):
+            self.assertEqual(decrypt("1......................."), "")
+        with self.subTest(msg="Punctuation only"):
+            self.assertEqual(decrypt("!@#$%^&*()"), "!@#$%^&*()")
+        with self.subTest(msg="Numbers and symbols"):
+            self.assertEqual(decrypt("123.456..789"), "123456789")
+
+
+if __name__ == '__main__':
+    unittest.main(argv=['first-arg-is-ignored'], exit=False)
