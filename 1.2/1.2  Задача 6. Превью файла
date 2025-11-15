@@ -1,0 +1,105 @@
+#  Задача 6. Превью файла
+
+from flask import Flask, escape
+import os
+from typing import Optional
+
+# Create an instance of the Flask application
+# یک نمونه از برنامه Flask ایجاد کنید
+app = Flask(__name__)
+
+# Base directory for the project, used to resolve relative paths safely
+# دایرکتوری پایه برای پروژه، برای حل مسیرهای نسبی به صورت ایمن استفاده می‌شود
+BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
+
+# --- Helper function to create a dummy file for testing ---
+# --- تابع کمکی برای ایجاد یک فایل ساختگی برای تست ---
+def create_dummy_file(filepath: str, content: str) -> None:
+    """Creates a small dummy text file for testing."""
+    # یک فایل متنی ساختگی کوچک برای تست ایجاد می‌کند.
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+@app.route('/head_file/<int:size>/<path:relative_path>')
+def head_file(size: int, relative_path: str) -> str:
+    """
+    Returns a preview of a file, showing the first 'size' characters.
+    The response includes the absolute path, the actual number of characters read,
+    and the preview text, formatted with HTML tags.
+    
+    پیش‌نمایشی از یک فایل را برمی‌گرداند که 'size' کاراکتر اول را نشان می‌دهد.
+    پاسخ شامل مسیر مطلق، تعداد واقعی کاراکترهای خوانده شده،
+    و متن پیش‌نمایش، با تگ‌های HTML فرمت شده است.
+
+    Args:
+        size (int): The maximum number of characters to read from the file.
+        حداکثر تعداد کاراکتر برای خواندن از فایل.
+        relative_path (str): The relative path to the file from the project's base directory.
+        مسیر نسبی فایل از دایرکتوری پایه پروژه.
+
+    Returns:
+        str: An HTML-formatted string containing file information and preview,
+             or an error message if the file cannot be accessed.
+        یک رشته HTML-فرمت شده حاوی اطلاعات فایل و پیش‌نمایش،
+        یا یک پیام خطا اگر فایل قابل دسترسی نباشد.
+    """
+    # Construct the absolute path / مسیر مطلق را بسازید
+    abs_file_path: str = os.path.join(BASE_DIR, relative_path)
+    
+    result_text: str = ""
+    result_size: int = 0
+
+    try:
+        # Check if the file exists and is a regular file / بررسی کنید که آیا فایل وجود دارد و یک فایل معمولی است
+        if not os.path.isfile(abs_file_path):
+            return f"<h1>Error: File '{escape(relative_path)}' not found or is not a regular file.</h1>"
+            # خطا: فایل '{escape(relative_path)}' یافت نشد یا یک فایل معمولی نیست.
+        
+        # Open the file and read only the specified 'size' characters
+        # فایل را باز کرده و تنها 'size' کاراکتر مشخص شده را بخوانید
+        with open(abs_file_path, 'r', encoding='utf-8') as file:
+            result_text = file.read(size)
+            result_size = len(result_text)
+            
+    except FileNotFoundError:
+        # This catch might be redundant due to os.path.isfile, but good for robustness
+        # این catch ممکن است به دلیل os.path.isfile اضافی باشد، اما برای پایداری خوب است
+        return f"<h1>Error: File '{escape(relative_path)}' not found.</h1>"
+        # خطا: فایل '{escape(relative_path)}' یافت نشد.
+    except Exception as e:
+        # Catch any other potential errors during file operations
+        # هر خطای پتانسیل دیگری را در طول عملیات فایل catch کنید
+        return f"<h1>Error reading file '{escape(relative_path)}': {escape(str(e))}</h1>"
+        # خطا در خواندن فایل '{escape(relative_path)}': {escape(str(e))}
+
+    # Format the output as specified / خروجی را همانطور که مشخص شده قالب‌بندی کنید
+    return (
+        f"<b>{escape(abs_file_path)}</b> {result_size}<br>"
+        f"{escape(result_text)}"
+    )
+
+if __name__ == '__main__':
+    # --- Create dummy files for testing ---
+    # --- ایجاد فایل‌های ساختگی برای تست ---
+    docs_dir = os.path.join(BASE_DIR, 'docs')
+    create_dummy_file(os.path.join(docs_dir, 'simple.txt'), 'hello world!')
+    create_dummy_file(os.path.join(docs_dir, 'long_text.txt'), 'This is a much longer text file to test truncation. It contains more than 100 characters.')
+    
+    print(f"Dummy files created in: {docs_dir}")
+    # فایل‌های ساختگی در: {docs_dir} ایجاد شدند.
+
+    # Run the Flask application in debug mode / برنامه Flask را در حالت اشکال‌زدایی اجرا کنید
+    # To test:
+    # http://127.0.0.1:5000/head_file/8/docs/simple.txt
+    # http://127.0.0.1:5000/head_file/100/docs/simple.txt
+    # http://127.0.0.1:5000/head_file/50/docs/long_text.txt
+    # http://127.0.0.1:5000/head_file/10/docs/non_existent_file.txt
+    app.run(debug=True)
+
+    # --- Clean up dummy files (optional, for development) ---
+    # --- پاکسازی فایل‌های ساختگی (اختیاری، برای توسعه) ---
+    # import shutil
+    # if os.path.exists(docs_dir):
+    #     shutil.rmtree(docs_dir)
+    #     print(f"Cleaned up dummy directory: {docs_dir}")
