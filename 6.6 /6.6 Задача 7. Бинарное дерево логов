@@ -1,0 +1,223 @@
+   Задача 7. Бинарное дерево логов 
+
+
+   import logging # Import the logging module / ماژول لاگینگ را وارد کنید
+import re # Import re for regular expressions / re را برای عبارات منظم وارد کنید
+import os # Import os for file operations / os را برای عملیات فایل وارد کنید
+from collections import deque # Import deque for BFS traversal / deque را برای پیمایش BFS وارد کنید
+
+# --- Configuration ---
+LOG_FILE_FOR_TREE_WALK = 'tree_walk_logs.log'
+
+# --- BinaryTreeNode Structure ---
+# --- ساختار BinaryTreeNode ---
+class BinaryTreeNode:
+    def __init__(self, value: int):
+        self.value = value # The value stored in the node / مقداری که در گره ذخیره شده است
+        self.left: 'Optional[BinaryTreeNode]' = None # Left child node / گره فرزند چپ
+        self.right: 'Optional[BinaryTreeNode]' = None # Right child node / گره فرزند راست
+
+    def __repr__(self):
+        # String representation for debugging / نمایش رشته‌ای برای اشکال‌زدایی
+        return f"BinaryTreeNode({self.value})"
+
+    def __eq__(self, other):
+        # Equality check for comparison / بررسی برابری برای مقایسه
+        if not isinstance(other, BinaryTreeNode):
+            return NotImplemented
+        return self.value == other.value and \
+               self.left == other.left and \
+               self.right == other.right
+
+
+# --- Logger Configuration for Tree Walk ---
+# --- پیکربندی لاگر برای پیمایش درخت ---
+# This logger will be used by walk_tree to create the log file that restore_tree will read.
+# این لاگر توسط walk_tree برای ایجاد فایل لاگی استفاده می‌شود که restore_tree آن را می‌خواند.
+tree_logger = logging.getLogger("tree_logger")
+tree_logger.setLevel(logging.INFO)
+tree_logger.propagate = False # Prevent messages from reaching the root logger / از رسیدن پیام‌ها به root logger جلوگیری کنید
+
+# Ensure the log file is clean before writing / اطمینان حاصل کنید که فایل لاگ قبل از نوشتن پاک است
+if os.path.exists(LOG_FILE_FOR_TREE_WALK):
+    os.remove(LOG_FILE_FOR_TREE_WALK)
+
+tree_file_handler = logging.FileHandler(LOG_FILE_FOR_TREE_WALK, encoding='utf-8')
+# Simple formatter for the tree walk logs / فرمتر ساده برای لاگ‌های پیمایش درخت
+tree_formatter = logging.Formatter('%(message)s') 
+tree_file_handler.setFormatter(tree_formatter)
+tree_logger.addHandler(tree_file_handler)
+
+
+# --- Function to walk the tree and log node information (provided by problem, slightly adapted) ---
+# --- تابع برای پیمایش درخت و لاگ کردن اطلاعات گره (توسط مسئله ارائه شده، کمی اقتباس شده) ---
+def walk_tree(root: BinaryTreeNode):
+    """
+    Walks a binary tree level by level (BFS) and logs information about each node.
+    Logs the current node's value and its children's values.
+    
+    یک درخت باینری را سطح به سطح (BFS) پیمایش می‌کند و اطلاعات مربوط به هر گره را لاگ می‌کند.
+    مقدار گره فعلی و مقادیر فرزندان آن را لاگ می‌کند.
+    """
+    if not root:
+        return
+
+    queue = deque([root]) # Use a deque for BFS / از deque برای BFS استفاده کنید
+    visited_nodes = set() # To keep track of visited nodes to avoid infinite loops in cyclic graphs / برای پیگیری گره‌های بازدید شده برای جلوگیری از حلقه‌های بی‌نهایت در نمودارهای سیکلی
+
+    while queue:
+        current_node = queue.popleft() # Get the next node from the queue / گره بعدی را از صف دریافت کنید
+
+        if current_node.value in visited_nodes:
+            continue
+        visited_nodes.add(current_node.value)
+
+        # Prepare log message / پیام لاگ را آماده کنید
+        log_message_parts = [f"Node {current_node.value}"]
+        if current_node.left:
+            log_message_parts.append(f"Left child {current_node.left.value}")
+            queue.append(current_node.left)
+        if current_node.right:
+            log_message_parts.append(f"Right child {current_node.right.value}")
+            queue.append(current_node.right)
+        
+        # Log the information / اطلاعات را لاگ کنید
+        tree_logger.info(" - ".join(log_message_parts))
+
+
+# --- Function to restore the tree from logs (main task) ---
+# --- تابع برای بازسازی درخت از لاگ‌ها (وظیفه اصلی) ---
+def restore_tree(log_file_path: str) -> 'Optional[BinaryTreeNode]':
+    """
+    Restores a binary tree from a log file.
+    The log file contains information about nodes and their children.
+    
+    یک درخت باینری را از یک فایل لاگ بازسازی می‌کند.
+    فایل لاگ حاوی اطلاعات مربوط به گره‌ها و فرزندان آنها است.
+
+    Args:
+        log_file_path (str): Path to the log file. / مسیر فایل لاگ.
+
+    Returns:
+        Optional[BinaryTreeNode]: The root of the restored binary tree, or None if the file is empty/invalid.
+                                  ریشه درخت باینری بازسازی شده، یا None اگر فایل خالی/نامعتبر باشد.
+    """
+    if not os.path.exists(log_file_path):
+        # Print error to stderr, not part of the tree log / خطا را به stderr چاپ کنید، نه بخشی از لاگ درخت
+        print(f"Error: Log file '{log_file_path}' not found.", file=sys.stderr)
+        return None
+
+    # Dictionary to store node_value: node_object for quick access / دیکشنری برای ذخیره node_value: node_object برای دسترسی سریع
+    nodes_map: Dict[int, BinaryTreeNode] = {}
+    
+    # Set to keep track of all nodes that have been referenced as children / مجموعه‌ای برای پیگیری تمام گره‌هایی که به عنوان فرزند ارجاع داده شده‌اند
+    all_children_values: Set[int] = set()
+    
+    # Process each line in the log file / هر خط را در فایل لاگ پردازش کنید
+    try:
+        with open(log_file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                # Example log line: "Node 1 - Left child 2 - Right child 3"
+                # Example log line: "Node 2 - Left child 4 - Right child 5"
+                
+                # Regex to find parent node value / Regex برای یافتن مقدار گره والد
+                node_match = re.search(r'Node (\d+)', line)
+                if not node_match:
+                    continue # Skip lines that don't match the expected format / از خطوطی که با فرمت مورد انتظار مطابقت ندارند، رد شوید
+                
+                parent_value = int(node_match.group(1))
+                
+                # Get or create the parent node / گره والد را دریافت یا ایجاد کنید
+                if parent_value not in nodes_map:
+                    nodes_map[parent_value] = BinaryTreeNode(parent_value)
+                parent_node = nodes_map[parent_value]
+
+                # Regex to find left child value / Regex برای یافتن مقدار فرزند چپ
+                left_child_match = re.search(r'Left child (\d+)', line)
+                if left_child_match:
+                    left_child_value = int(left_child_match.group(1))
+                    # Get or create the left child node / گره فرزند چپ را دریافت یا ایجاد کنید
+                    if left_child_value not in nodes_map:
+                        nodes_map[left_child_value] = BinaryTreeNode(left_child_value)
+                    parent_node.left = nodes_map[left_child_value]
+                    all_children_values.add(left_child_value) # Mark as a child / به عنوان فرزند علامت‌گذاری کنید
+
+                # Regex to find right child value / Regex برای یافتن مقدار فرزند راست
+                right_child_match = re.search(r'Right child (\d+)', line)
+                if right_child_match:
+                    right_child_value = int(right_child_match.group(1))
+                    # Get or create the right child node / گره فرزند راست را دریافت یا ایجاد کنید
+                    if right_child_value not in nodes_map:
+                        nodes_map[right_child_value] = BinaryTreeNode(right_child_value)
+                    parent_node.right = nodes_map[right_child_value]
+                    all_children_values.add(right_child_value) # Mark as a child / به عنوان فرزند علامت‌گذاری کنید
+    except Exception as e:
+        print(f"Error reading or parsing log file '{log_file_path}': {e}", file=sys.stderr)
+        return None
+
+    # Find the root node: it's the node that is never a child of any other node.
+    # ریشه درخت را پیدا کنید: گره‌ای است که هرگز فرزند گره دیگری نیست.
+    root_node: Optional[BinaryTreeNode] = None
+    for value, node in nodes_map.items():
+        if value not in all_children_values:
+            root_node = node
+            break # Assuming there's only one root / فرض بر این است که فقط یک ریشه وجود دارد
+    
+    # If no root found, or no nodes processed / اگر ریشه‌ای یافت نشد یا گره‌ای پردازش نشد
+    if not root_node and nodes_map:
+        # This can happen if the tree is empty or malformed in logs / این می‌تواند اتفاق بیفتد اگر درخت خالی یا در لاگ‌ها بدشکل باشد
+        print("Warning: No clear root node found, returning first available node.", file=sys.stderr)
+        return next(iter(nodes_map.values())) # Return any node as a fallback / هر گره‌ای را به عنوان یک جایگزین برگردانید
+    
+    return root_node
+
+
+# --- Helper function for testing/demonstration ---
+# --- تابع کمکی برای تست/نمایش ---
+def build_example_tree_for_walk() -> BinaryTreeNode:
+    """Builds the example tree given in the problem description. / درخت مثال داده شده در توضیحات مسئله را می‌سازد."""
+    root = BinaryTreeNode(1)
+    node2 = BinaryTreeNode(2)
+    node3 = BinaryTreeNode(3)
+    node4 = BinaryTreeNode(4)
+    node5 = BinaryTreeNode(5)
+
+    root.left = node2
+    root.right = node3
+    node2.left = node4
+    node2.right = node5
+    
+    return root
+
+# Main execution block to demonstrate / بلوک اجرای اصلی برای نمایش
+if __name__ == '__main__':
+    # 1. Build an example tree / 1. یک درخت مثال بسازید
+    example_root = build_example_tree_for_walk()
+    print("Example Tree built for walking and logging.")
+    
+    # 2. Walk the tree and generate logs / 2. درخت را پیمایش کنید و لاگ‌ها را تولید کنید
+    walk_tree(example_root)
+    print(f"Tree walk logs generated in '{LOG_FILE_FOR_TREE_WALK}'.")
+
+    # 3. Restore the tree from the generated logs / 3. درخت را از لاگ‌های تولید شده بازسازی کنید
+    restored_root = restore_tree(LOG_FILE_FOR_TREE_WALK)
+
+    # 4. Verify the restored tree / 4. درخت بازسازی شده را تأیید کنید
+    if restored_root:
+        print("\nRestored Tree Root:", restored_root)
+        # You can add a function to print the tree structure to verify / می‌توانید تابعی برای چاپ ساختار درخت برای تأیید اضافه کنید
+        # For simple verification, we can compare the whole tree structure
+        print(f"Is restored tree identical to example tree? {restored_root == example_root}")
+        
+        # Another way to verify: walk the restored tree and print its logs / راه دیگری برای تأیید: درخت بازسازی شده را پیمایش کنید و لاگ‌های آن را چاپ کنید
+        print("\nWalking restored tree to verify its structure:")
+        # Temporarily redirect tree_logger to stdout to see its output / موقتاً tree_logger را به stdout هدایت کنید تا خروجی آن را ببینید
+        temp_stdout_handler = logging.StreamHandler(sys.stdout)
+        temp_stdout_handler.setFormatter(tree_formatter)
+        tree_logger.addHandler(temp_stdout_handler)
+        
+        walk_tree(restored_root)
+        
+        tree_logger.removeHandler(temp_stdout_handler) # Clean up / پاکسازی
+    else:
+        print("Failed to restore tree from logs.")
