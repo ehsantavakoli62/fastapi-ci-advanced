@@ -1,0 +1,109 @@
+#   Задача 3. Заглушка исключений
+
+
+from typing import Set, Type # Import Type for type hints of Exception classes / Type را برای نکات تایپ کلاس‌های Exception وارد کنید
+
+class BlockErrors:
+    """
+    A context manager that suppresses specified exception types occurring within its `with` block.
+    If an unexpected exception type is raised, it is propagated.
+    
+    یک مدیر متن است که انواع استثناهای مشخص شده را که در بلوک `with` آن رخ می‌دهد، سرکوب می‌کند.
+    اگر یک نوع استثنای غیرمنتظره ایجاد شود، آن را به بالا منتقل می‌کند.
+    """
+    
+    def __init__(self, err_types: Set[Type[Exception]]):
+        """
+        Initializes the context manager with a set of exception types to suppress.
+        
+        مدیر متن را با مجموعه‌ای از انواع استثناها برای سرکوب مقداردهی اولیه می‌کند.
+
+        Args:
+            err_types (Set[Type[Exception]]): A set of exception classes to ignore.
+                                               مجموعه‌ای از کلاس‌های استثنا برای نادیده گرفتن.
+        """
+        self.err_types = err_types
+
+    def __enter__(self):
+        """
+        Called when entering the `with` block. No special setup needed here.
+        
+        هنگام ورود به بلوک `with` فراخوانی می‌شود. نیازی به تنظیمات خاصی در اینجا نیست.
+        """
+        pass # Nothing to do on entering the block / کاری برای انجام در هنگام ورود به بلوک نیست
+
+    def __exit__(self, exc_type: Type[Exception] | None, exc_val: Exception | None, exc_tb: Any | None) -> bool:
+        """
+        Called when exiting the `with` block. Handles exception suppression.
+        
+        هنگام خروج از بلوک `with` فراخوانی می‌شود. سرکوب استثنا را مدیریت می‌کند.
+
+        Args:
+            exc_type (Type[Exception] | None): The type of the exception raised (e.g., ValueError).
+                                               نوع استثنای ایجاد شده (مانند ValueError).
+            exc_val (Exception | None): The exception instance (e.g., ValueError('invalid value')).
+                                        نمونه استثنا (مانند ValueError('invalid value')).
+            exc_tb (Any | None): The traceback object.
+                                 شیء traceback.
+
+        Returns:
+            bool: True if the exception should be suppressed (handled), False otherwise (propagated).
+                  True اگر استثنا باید سرکوب شود (مدیریت شود)، در غیر این صورت False (انتقال یابد).
+        """
+        if exc_type is None:
+            # No exception was raised / هیچ استثنایی ایجاد نشد
+            return False
+        
+        # Check if the raised exception type is a subclass of any type in err_types.
+        # This handles both direct matches and derived exceptions (e.g., ValueError matches Exception).
+        # بررسی کنید که آیا نوع استثنای ایجاد شده زیرکلاسی از هر نوع در err_types است.
+        # این هم تطابق‌های مستقیم و هم استثناهای مشتق شده (مثلاً ValueError با Exception مطابقت دارد) را پوشش می‌دهد.
+        for handled_type in self.err_types:
+            if issubclass(exc_type, handled_type):
+                # The exception is of a type that should be suppressed / استثنا از نوعی است که باید سرکوب شود
+                return True
+        
+        # The exception type is not in the set of suppressed types, so propagate it.
+        # نوع استثنا در مجموعه انواع سرکوب شده نیست، بنابراین آن را منتقل کنید.
+        return False
+
+# --- Example Usage (as per problem description) ---
+if __name__ == '__main__':
+    print("--- Example 1 ---")
+    err_types = {ZeroDivisionError, TypeError}
+    try:
+        with BlockErrors(err_types):
+            a = 1 / 0
+        print('Выполнено без ошибок') # Executed without errors / بدون خطا اجرا شد
+    except Exception as e:
+        print(f"Unexpected error caught: {type(e).__name__}: {e}") # خطای غیرمنتظره گرفته شد: {type(e).__name__}: {e}
+
+    print("\n--- Example 2 ---")
+    err_types = {ZeroDivisionError}
+    try:
+        with BlockErrors(err_types):
+            a = 1 / '0'
+        print('Выполнено без ошибок')
+    except Exception as e:
+        print(f"{type(e).__name__}: {e}")
+
+    print("\n--- Example 3 ---")
+    outer_err_types = {TypeError}
+    try:
+        with BlockErrors(outer_err_types):
+            inner_err_types = {ZeroDivisionError}
+            with BlockErrors(inner_err_types):
+                a = 1 / '0'
+            print('Внутренний блок: выполнено без ошибок') # Inner block: executed without errors / بلوک داخلی: بدون خطا اجرا شد
+        print('Внешний блок: выполнено без ошибок') # Outer block: executed without errors / بلوک خارجی: بدون خطا اجرا شد
+    except Exception as e:
+        print(f"Unexpected error caught in outer block: {type(e).__name__}: {e}") # خطای غیرمنتظره در بلوک خارجی گرفته شد: {type(e).__name__}: {e}
+
+    print("\n--- Example 4 ---")
+    err_types = {Exception}
+    try:
+        with BlockErrors(err_types):
+            a = 1 / '0'
+        print('Выполнено без ошибок')
+    except Exception as e:
+        print(f"Unexpected error caught: {type(e).__name__}: {e}")
