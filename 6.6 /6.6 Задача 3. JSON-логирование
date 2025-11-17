@@ -1,0 +1,280 @@
+#  Задача 3. JSON-логирование
+
+
+from flask import Flask, request, jsonify, render_template_string
+from flask_wtf import FlaskForm
+from wtforms import StringField, IntegerField, TextAreaField, PasswordField
+from wtforms.validators import InputRequired, NumberRange, ValidationError, Length
+from typing import Dict, Any, List, Optional
+import subprocess
+import shlex
+import sys
+import os
+import logging
+import json # Import json module for JSON logging / ماژول json را برای JSON لاگینگ وارد کنید
+
+# Import the password checker module (from Task 2) / ماژول بررسی رمز عبور را وارد کنید (از وظیفه 2)
+from password_checker import is_strong_password, _load_english_words, _ENGLISH_WORDS
+
+
+# --- Custom JSON Logger Adapter ---
+# --- آداپتور سفارشی لاگر JSON ---
+class JsonAdapter(logging.LoggerAdapter):
+    """
+    A LoggerAdapter that ensures log messages are always JSON-valid by
+    escaping the message content using json.dumps.
+    
+    یک LoggerAdapter که با escape کردن محتوای پیام با استفاده از json.dumps،
+    اطمینان حاصل می‌کند که پیام‌های لاگ همیشه JSON-معتبر هستند.
+    """
+    def process(self, msg, kwargs):
+        # Escape the message using json.dumps to handle quotes, newlines, etc.
+        # However, json.dumps adds extra quotes. We only need the escaped string content.
+        # We also want to integrate additional fields from kwargs, e.g., 'extra'.
+
+        # If 'extra' dict is provided, we merge it into kwargs and then process the message.
+        extra_data = kwargs.pop('extra', {})
+        record_data = {
+            "time": self.logger.format(logging.LogRecord(self.logger.name, 0, '', 0, '', [], None)).split(' - ')[0], # Extract time from default formatter / زمان را از فرمتر پیش‌فرض استخراج کنید
+            "level": logging.getLevelName(self.level), # Get level name for the current log / نام سطح را برای لاگ فعلی بگیرید
+            "message": msg # The original message / پیام اصلی
+        }
+        record_data.update(extra_data) # Merge extra data / داده‌های اضافی را ادغام کنید
+        
+        # Now, dump the entire dict to a JSON string.
+        # json.dumps will correctly handle escaping all values, including msg.
+        return json.dumps(record_data, ensure_ascii=False), kwargs
+
+
+# --- Logging Configuration (for Task 3: JSON Logging) ---
+# --- پیکربندی لاگینگ (برای وظیفه 3: JSON لاگینگ) ---
+
+# 1. Create a logger instance / یک نمونه لاگر ایجاد کنید
+base_logger = logging.getLogger(__name__) # Get a base logger for this module / یک لاگر پایه برای این ماژول بگیرید
+base_logger.setLevel(logging.INFO) # Set the minimum level to INFO / حداقل سطح را روی INFO تنظیم کنید
+
+# 2. Create a file handler for JSON logs / یک فایل هندلر برای لاگ‌های JSON ایجاد کنید
+json_log_file_name = 'skillbox_json_messages.log'
+if os.path.exists(json_log_file_name):
+    with open(json_log_file_name, 'w'):
+        pass # Clears the file content / محتوای فایل را پاک می‌کند
+json_file_handler = logging.FileHandler(json_log_file_name, encoding='utf-8')
+
+# 3. Create a formatter for the file handler. 
+#    The JsonAdapter will handle the JSON formatting of the message itself.
+#    So, the formatter just needs to output the raw message from the adapter.
+#    یک فرمتر برای فایل هندلر ایجاد کنید.
+#    JsonAdapter فرمت JSON خود پیام را مدیریت می‌کند.
+#    بنابراین، فرمتر فقط باید پیام خام را از آداپتور خروجی دهد.
+json_formatter = logging.Formatter('%(message)s') # Just output the message, which is already JSON / فقط پیام را خروجی دهید، که از قبل JSON است
+
+# 4. Add the formatter to the file handler / فرمتر را به فایل هندلر اضافه کنید
+json_file_handler.setFormatter(json_formatter)
+
+# 5. Add the file handler to the base logger / فایل هندلر را به لاگر پایه اضافه کنید
+base_logger.addHandler(json_file_handler)
+
+# 6. Create the JsonAdapter instance / نمونه JsonAdapter را ایجاد کنید
+logger = JsonAdapter(base_logger)
+
+
+# --- End Logging Configuration ---
+
+
+# Create an instance of the Flask application
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'a_very_secret_key_for_code_execution_app' 
+
+# Pre-load English words when the Flask app starts (from Task 2)
+# کلمات انگلیسی را هنگام شروع برنامه Flask از پیش بارگذاری کنید (از وظیفه 2)
+with app.app_context():
+    _load_english_words()
+
+
+# --- Helper function to check for prlimit availability (from Task 1) ---
+def is_prlimit_available() -> bool:
+    return sys.platform.startswith('linux') and os.path.exists('/usr/bin/prlimit')
+
+
+# --- Form Definitions ---
+# --- تعاریف فرم ---
+
+# Form for code execution (from Task 1)
+class CodeExecutionForm(FlaskForm):
+    code = TextAreaField(
+        'Python Code', 
+        validators=[
+            InputRequired(message="Code field cannot be empty. / فیلد کد نمی‌تواند خالی باشد."),
+            Length(min=1, message="Code cannot be empty. / کد نمی‌تواند خالی باشد.")
+        ]
+    )
+    timeout = IntegerField(
+        'Timeout (seconds)', 
+        validators=[
+            InputRequired(message="Timeout is required. / تایم‌اوت الزامی است."),
+            NumberRange(min=1, max=30, message="Timeout must be between 1 and 30 seconds. / تایم‌اوت باید بین 1 تا 30 ثانیه باشد.")
+        ]
+    )
+
+# New form for password strength checking (for Task 2)
+class PasswordCheckForm(FlaskForm):
+    password = PasswordField(
+        'Password',
+        validators=[InputRequired(message="Password cannot be empty. / رمز عبور نمی‌تواند خالی باشد."),
+                    Length(min=8, message="Password must be at least 8 characters long. / رمز عبور باید حداقل 8 کاراکتر باشد.")]
+    )
+
+
+# --- Endpoint for Code Execution (from Task 1) ---
+@app.route('/execute_code', methods=['GET', 'POST'])
+def execute_code_endpoint():
+    form = CodeExecutionForm()
+
+    if form.validate_on_submit():
+        user_code = form.code.data
+        timeout = form.timeout.data
+        
+        logger.info("Received code execution request.", extra={"timeout": timeout, "code_length": len(user_code)})
+
+        cmd: List[str] = [sys.executable, "-c", user_code]
+
+        if is_prlimit_available():
+            cmd = ["prlimit", "--nproc=1:1"] + cmd
+            logger.debug(f"Using prlimit: {' '.join(cmd)}") # This debug message will not be formatted as JSON directly by JsonAdapter, 
+                                                              # as JsonAdapter is configured to format the *entire* message.
+                                                              # For full JSON logging, all messages should go through the adapter.
+                                                              # If you want debug messages in JSON, set base_logger.setLevel(logging.DEBUG)
+        else:
+            logger.warning("prlimit not available or not Linux. Proceeding without resource limits.", extra={"risk": "security_risk"})
+
+        try:
+            process = subprocess.Popen(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE, 
+                text=True, 
+                shell=False 
+            )
+            
+            stdout_output, stderr_output = process.communicate(timeout=timeout)
+
+            if process.returncode == 0:
+                logger.info("Code executed successfully.", extra={"output_len": len(stdout_output), "return_code": 0})
+                return jsonify({
+                    "status": "success",
+                    "output": stdout_output.strip()
+                })
+            else:
+                logger.error("Code execution failed.", extra={"return_code": process.returncode, "stderr_output": stderr_output.strip()})
+                return jsonify({
+                    "status": "error",
+                    "output": stderr_output.strip(),
+                    "return_code": process.returncode
+                }), 400
+
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout_output, stderr_output = process.communicate()
+            logger.warning("Code execution timed out.", extra={"timeout_seconds": timeout, "output_before_timeout": stdout_output.strip(), "error_before_timeout": stderr_output.strip()})
+            return jsonify({
+                "status": "timeout",
+                "message": f"Code execution timed out after {timeout} seconds.",
+                "output_before_timeout": stdout_output.strip(),
+                "error_before_timeout": stderr_output.strip()
+            }), 408
+        except FileNotFoundError:
+            logger.critical("Python interpreter or prlimit command not found. Check system PATH.", extra={"error_type": "FileNotFound"})
+            return jsonify({
+                "status": "error",
+                "message": "Python interpreter or prlimit command not found. / مفسر پایتون یا دستور prlimit یافت نشد."
+            }), 500
+        except Exception as e:
+            logger.exception("An unexpected server error occurred during code execution.", extra={"exception_type": type(e).__name__, "error_message": str(e)})
+            return jsonify({
+                "status": "error",
+                "message": f"An unexpected server error occurred: {str(e)} / یک خطای سرور غیرمنتظره رخ داد: {str(e)}"
+            }), 500
+    
+    if request.method == 'GET':
+        logger.info("Serving code execution form page.")
+    else: # POST request with validation errors
+        logger.warning("Code execution form validation failed.", extra={"errors": form.errors})
+
+    return render_template_string("""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Python Code Executor</title>
+            <style>
+                body { font-family: sans-serif; margin: 2em; }
+                form { background: #f9f9f9; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,.1); margin-bottom: 20px; }
+                textarea, input[type="number"], input[type="password"] { width: 100%; padding: 8px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+                input[type="submit"] { background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
+                input[type="submit"]:hover { background-color: #45a049; }
+                .error { color: red; font-size: 0.9em; }
+                pre { background-color: #eee; padding: 10px; border-radius: 4px; overflow-x: auto; }
+            </style>
+        </head>
+        <body>
+            <h1>Execute Python Code</h1>
+            <form action="/execute_code" method="POST">
+                {{ form.csrf_token }}
+                <p>
+                    {{ form.code.label }}<br>
+                    {{ form.code(rows=10, cols=80) }}
+                    {% if form.code.errors %}<span class="error">{% for error in form.code.errors %}{{ error }}{% endfor %}</span>{% endif %}
+                </p>
+                <p>
+                    {{ form.timeout.label }}<br>
+                    {{ form.timeout() }}
+                    {% if form.timeout.errors %}<span class="error">{% for error in form.timeout.errors %}{{ error }}{% endfor %}</span>{% endif %}
+                </p>
+                <p><input type="submit" value="Execute Code"></p>
+            </form>
+
+            <hr>
+
+            <h1>Check Password Strength</h1>
+            <form action="/check_password_strength" method="POST">
+                {{ password_form.csrf_token }}
+                <p>
+                    {{ password_form.password.label }}<br>
+                    {{ password_form.password() }}
+                    {% if password_form.password.errors %}<span class="error">{% for error in password_form.password.errors %}{{ error }}{% endfor %}</span>{% endif %}
+                </p>
+                <p><input type="submit" value="Check Strength"></p>
+            </form>
+        </body>
+        </html>
+    """, form=form, password_form=PasswordCheckForm())
+
+
+# --- New Endpoint for Password Strength Checking (for Task 2, integrated for Task 3 logging) ---
+@app.route('/check_password_strength', methods=['POST'])
+def check_password_strength_endpoint():
+    password_form = PasswordCheckForm()
+
+    if password_form.validate_on_submit():
+        password = password_form.password.data
+        is_strong = is_strong_password(password)
+        
+        logger.info("Password strength check performed.", extra={"is_strong": is_strong, "password_length": len(password)})
+        
+        status_message = "strong" if is_strong else "weak"
+        return jsonify({
+            "status": "success",
+            "password_strength": status_message,
+            "message": f"The password is {status_message}."
+        })
+    else:
+        logger.warning("Password strength check form validation failed.", extra={"errors": password_form.errors})
+        return jsonify({
+            "status": "error",
+            "message": "Validation failed.",
+            "errors": password_form.errors
+        }), 400
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
