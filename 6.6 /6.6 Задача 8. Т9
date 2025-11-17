@@ -1,0 +1,169 @@
+#  Задача 8. Т9
+
+import re # Import re for regular expressions / re را برای عبارات منظم وارد کنید
+import os # Import os for interacting with the operating system / os را برای تعامل با سیستم عامل
+from typing import List, Dict, Set, Optional # Import typing hints / راهنمایی‌های تایپینگ را وارد کنید
+
+# --- Configuration ---
+# Path to the English word list file / مسیر فایل لیست کلمات انگلیسی
+WORDS_FILE_PATH_LINUX = '/usr/share/dict/words'
+# Fallback path if the Linux path is not available (e.g., for Windows or macOS)
+# مسیر جایگزین اگر مسیر لینوکس در دسترس نباشد (مثلاً برای ویندوز یا macOS)
+WORDS_FILE_PATH_FALLBACK = 'words.txt' 
+
+# T9 mapping dictionary / دیکشنری نگاشت T9
+T9_MAPPING: Dict[str, str] = {
+    '2': 'abc',
+    '3': 'def',
+    '4': 'ghi',
+    '5': 'jkl',
+    '6': 'mno',
+    '7': 'pqrs',
+    '8': 'tuv',
+    '9': 'wxyz'
+}
+
+# --- Global variable for the pre-processed dictionary ---
+# --- متغیر سراسری برای دیکشنری از پیش پردازش شده ---
+# This will store {t9_sequence: [word1, word2, ...]} / این {t9_sequence: [word1, word2, ...]} را ذخیره می‌کند
+_T9_DICT_MAPPED_WORDS: Dict[str, List[str]] = {} 
+_IS_DICT_LOADED = False # Flag to ensure dictionary is loaded only once / پرچم برای اطمینان از بارگذاری دیکشنری فقط یک بار
+
+
+# --- Helper Function: Load Words and Pre-process Dictionary ---
+# --- تابع کمکی: بارگذاری کلمات و پیش پردازش دیکشنری ---
+def _load_and_preprocess_words(file_path: Optional[str] = None):
+    """
+    Loads English words from a file and pre-processes them into a T9-mapped dictionary.
+    This function should be called only once.
+    
+    کلمات انگلیسی را از یک فایل بارگذاری می‌کند و آنها را به یک دیکشنری نگاشت شده T9 پیش پردازش می‌کند.
+    این تابع باید فقط یک بار فراخوانی شود.
+    """
+    global _T9_DICT_MAPPED_WORDS, _IS_DICT_LOADED
+    
+    if _IS_DICT_LOADED:
+        return # Dictionary already loaded / دیکشنری قبلاً بارگذاری شده است
+
+    if file_path is None:
+        if os.path.exists(WORDS_FILE_PATH_LINUX):
+            file_path = WORDS_FILE_PATH_LINUX
+        elif os.path.exists(WORDS_FILE_PATH_FALLBACK):
+            file_path = WORDS_FILE_PATH_FALLBACK
+        else:
+            print(f"Error: Word list file not found at '{WORDS_FILE_PATH_LINUX}' or '{WORDS_FILE_PATH_FALLBACK}'. Please provide or create 'words.txt'.", file=sys.stderr)
+            _IS_DICT_LOADED = True # Mark as attempted / به عنوان تلاش شده علامت‌گذاری کنید
+            return
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                word = line.strip().lower() # Read word, strip whitespace, convert to lowercase / کلمه را بخوانید، فضای خالی را حذف کنید، به حروف کوچک تبدیل کنید
+                # We only care about alphabetic words for T9 / ما فقط به کلمات الفبایی برای T9 اهمیت می‌دهیم
+                if word.isalpha(): 
+                    t9_sequence = ""
+                    for char in word:
+                        found_digit = False
+                        for digit, chars_in_digit in T9_MAPPING.items():
+                            if char in chars_in_digit:
+                                t9_sequence += digit
+                                found_digit = True
+                                break
+                        # If a character is not in T9_MAPPING (e.g., non-alphabetic, or outside a-z), skip the word
+                        # اگر کاراکتری در T9_MAPPING نباشد (مثلاً غیر الفبایی، یا خارج از a-z)، کلمه را رد کنید
+                        if not found_digit:
+                            t9_sequence = "" # Reset if invalid char / در صورت وجود کاراکتر نامعتبر، ریست کنید
+                            break
+                    
+                    if t9_sequence: # Only add if a valid T9 sequence was generated / فقط در صورت تولید یک دنباله T9 معتبر اضافه کنید
+                        if t9_sequence not in _T9_DICT_MAPPED_WORDS:
+                            _T9_DICT_MAPPED_WORDS[t9_sequence] = []
+                        _T9_DICT_MAPPED_WORDS[t9_sequence].append(word)
+        
+        _IS_DICT_LOADED = True # Mark as loaded successfully / به عنوان با موفقیت بارگذاری شده علامت‌گذاری کنید
+        # print(f"Loaded and pre-processed {len(_T9_DICT_MAPPED_WORDS)} T9 sequences from {file_path}")
+    except FileNotFoundError:
+        print(f"Error: Word list file not found at '{file_path}'.", file=sys.stderr)
+    except Exception as e:
+        print(f"Error loading or processing words from '{file_path}': {e}", file=sys.stderr)
+    
+# Call this function once when the module is imported / این تابع را یک بار هنگام وارد کردن ماژول فراخوانی کنید
+_load_and_preprocess_words()
+
+
+# --- Main Function: my_t9 ---
+# --- تابع اصلی: my_t9 ---
+def my_t9(digits: str) -> List[str]:
+    """
+    Given a sequence of digits (2-9), returns a list of English words
+    that can be formed from that sequence using T9 mapping.
+    
+    با توجه به دنباله‌ای از ارقام (2-9)، لیستی از کلمات انگلیسی را برمی‌گرداند
+    که می‌توان با استفاده از نگاشت T9 از آن دنباله تشکیل داد.
+
+    Args:
+        digits (str): A string consisting of digits from '2' to '9'. / یک رشته متشکل از ارقام '2' تا '9'.
+
+    Returns:
+        List[str]: A list of matching English words. Returns an empty list if no matches or input is invalid.
+                   لیستی از کلمات انگلیسی مطابق. در صورت عدم تطابق یا ورودی نامعتبر، لیستی خالی برمی‌گرداند.
+    """
+    if not _IS_DICT_LOADED:
+        print("Warning: Dictionary not loaded. Cannot perform T9 prediction.", file=sys.stderr)
+        return []
+
+    # Input validation / اعتبارسنجی ورودی
+    if not re.fullmatch(r'^[2-9]+$', digits):
+        # print(f"Invalid input: '{digits}'. Must contain only digits from 2-9.", file=sys.stderr)
+        return []
+
+    # Directly look up the T9 sequence in the pre-processed dictionary / دنباله T9 را مستقیماً در دیکشنری از پیش پردازش شده جستجو کنید
+    return _T9_DICT_MAPPED_WORDS.get(digits, [])
+
+
+# --- Main execution block for demonstration ---
+# --- بلوک اجرای اصلی برای نمایش ---
+if __name__ == '__main__':
+    # Ensure words.txt exists for demonstration if /usr/share/dict/words is not present
+    # اطمینان حاصل کنید که words.txt برای نمایش وجود دارد اگر /usr/share/dict/words موجود نیست
+    if not os.path.exists(WORDS_FILE_PATH_LINUX) and not os.path.exists(WORDS_FILE_PATH_FALLBACK):
+        print(f"Creating a dummy '{WORDS_FILE_PATH_FALLBACK}' for demonstration purposes.", file=sys.stderr)
+        with open(WORDS_FILE_PATH_FALLBACK, 'w', encoding='utf-8') as f:
+            f.write("hello\nworld\nskillbox\npython\nflask\napple\nbasement\ncat\ndog\nfun\ngreat\nhouse\n")
+        # Reload dictionary after creating dummy file / دیکشنری را پس از ایجاد فایل ساختگی مجدداً بارگذاری کنید
+        _IS_DICT_LOADED = False # Reset flag / پرچم را ریست کنید
+        _T9_DICT_MAPPED_WORDS = {} # Clear existing data / داده‌های موجود را پاک کنید
+        _load_and_preprocess_words(WORDS_FILE_PATH_FALLBACK) # Load with the dummy file / با فایل ساختگی بارگذاری کنید
+        print(f"Dummy word list '{WORDS_FILE_PATH_FALLBACK}' created and loaded.", file=sys.stderr)
+
+    print("T9 MAPPING:")
+    for digit, chars in T9_MAPPING.items():
+        print(f"{digit} -> {chars}")
+    print("-" * 30)
+
+    test_sequences = {
+        "22736368": ["basement"], # b=2, a=2, s=7, e=3, m=6, e=3, n=6, t=8
+        "27753": ["apple"],    # a=2, p=7, p=7, l=5, e=3
+        "7984666": ["python"], # p=7, y=9, t=8, h=4, o=6, n=6
+        "43556": ["hello"],    # h=4, e=3, l=5, l=5, o=6
+        "228": ["cat"],
+        "364": ["dog", "fog"],
+        "111": [],             # Invalid digits / ارقام نامعتبر
+        "2": ["a", "b", "c"],  # Single digit / تک رقم
+        "99999": ["zzzzz", "yyyyy", "xxxxx"], # Expect no real word matches typically / انتظار می‌رود معمولاً هیچ تطابق کلمه واقعی نداشته باشد
+        "": []                 # Empty input / ورودی خالی
+    }
+
+    for digits_input, expected_words in test_sequences.items():
+        result = my_t9(digits_input)
+        print(f"Input: '{digits_input}' -> Predicted: {result}")
+        # Basic assertion for demo / تأیید اولیه برای نمایش
+        if sorted(result) != sorted(expected_words):
+             print(f"  FAIL: Expected {expected_words}, got {result}")
+        # else:
+        #      print("  PASS")
+    print("-" * 30)
+
+    # Example: if a word like 'fun' is in words.txt / مثال: اگر کلمه‌ای مانند 'fun' در words.txt باشد
+    # f=3, u=8, n=6
+    # print(f"Input '386' -> Predicted: {my_t9('386')}")
