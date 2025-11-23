@@ -1,0 +1,9 @@
+-- 3_6.sql (SQL-ex LN=6)
+SELECT 
+    model, 
+    speed, 
+    hd 
+FROM 
+    PC
+WHERE 
+    price < 1000;
