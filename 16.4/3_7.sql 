@@ -1,0 +1,7 @@
+-- 3_7.sql (SQL-ex LN=7)
+SELECT DISTINCT 
+    model 
+FROM 
+    Printer
+WHERE 
+    price > 200;
