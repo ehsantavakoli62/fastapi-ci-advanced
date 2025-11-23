@@ -1,0 +1,9 @@
+-- 3_9.sql (SQL-ex LN=9)
+SELECT DISTINCT
+    P.maker
+FROM
+    Product P
+INNER JOIN
+    PC ON P.model = PC.model
+WHERE
+    PC.speed >= 450;
