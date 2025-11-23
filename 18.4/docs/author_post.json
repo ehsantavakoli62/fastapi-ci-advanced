@@ -1,0 +1,45 @@
+// docs/author_post.json
+
+{
+  "tags": [
+    "Authors"
+  ],
+  "summary": "Creates a new author",
+  "description": "Adds a new author to the database.",
+  "parameters": [
+    {
+      "in": "body",
+      "name": "body",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "first_name",
+          "last_name"
+        ],
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "example": "جلال"
+          },
+          "last_name": {
+            "type": "string",
+            "example": "آل احمد"
+          },
+          "middle_name": {
+            "type": "string",
+            "example": "سادات"
+          }
+        }
+      }
+    }
+  ],
+  "responses": {
+    "201": {
+      "description": "Author successfully created."
+    },
+    "400": {
+      "description": "Validation Error (e.g., missing name)."
+    }
+  }
+}
