@@ -1,0 +1,7 @@
+-- 3_50.sql (SQL-ex LN=50)
+SELECT 
+    model
+FROM 
+    Printer
+WHERE 
+    price = (SELECT MAX(price) FROM Printer);
