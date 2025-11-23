@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from 'macros.html' import render_field %}
+
+{% block content %}
+    <h2>Добавить новую книгу</h2>
+    
+    <form method="POST" action="{{ url_for('add_book_form') }}">
+        {{ form.hidden_tag() }} 
+        
+        <div>
+            {{ form.book_name.label }}
+            {{ form.book_name(size=64) }}
+            {% if form.book_name.errors %}
+                <ul class="error-list">
+                    {% for error in form.book_name.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+        
+        <div>
+            {{ form.author.label }}
+            {{ form.author(size=64) }}
+            {% if form.author.errors %}
+                <ul class="error-list">
+                    {% for error in form.author.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <div>
+            {{ form.publish_year.label }}
+            {{ form.publish_year(type='number') }}
+            {% if form.publish_year.errors %}
+                <ul class="error-list">
+                    {% for error in form.publish_year.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+        
+        <div>
+            {{ form.ISBN.label }}
+            {{ form.ISBN(size=64) }}
+            {% if form.ISBN.errors %}
+                <ul class="error-list">
+                    {% for error in form.ISBN.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+        
+        <p>{{ form.submit() }}</p>
+    </form>
+{% endblock %}
