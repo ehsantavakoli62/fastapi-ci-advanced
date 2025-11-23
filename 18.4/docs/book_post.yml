@@ -1,0 +1,48 @@
+# docs/book_post.yml
+
+Create a new Book
+---
+tags:
+  - Books
+summary: Creates a new book and optionally a new author.
+description: This endpoint validates book data and, if successful, adds the book to the database. It can also handle nested author creation.
+parameters:
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      properties:
+        book_name:
+          type: string
+          example: 'جنایت و مکافات'
+        publish_year:
+          type: integer
+          example: 1866
+        ISBN:
+          type: string
+          example: '978-1234567890'
+        author_id:
+          type: integer
+          description: ID of an existing author. Required if 'author' is not provided.
+          example: 1
+        author: # Nested author object for inline creation (Optional)
+          type: object
+          description: Optional new author data to create before creating the book.
+          properties:
+            first_name:
+              type: string
+              example: 'فئودور'
+            last_name:
+              type: string
+              example: 'داستایوفسکی'
+            middle_name:
+              type: string
+              example: 'میخائیلویچ'
+responses:
+  201:
+    description: Book successfully created.
+  400:
+    description: Validation Error (e.g., missing field, invalid author_id).
+  409:
+    description: Conflict (e.g., ISBN already exists).
