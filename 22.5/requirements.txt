@@ -1,0 +1,6 @@
+# requirements.txt
+Flask
+celery
+redis
+Pillow
+requests
