@@ -1,0 +1,6 @@
+# students_data.csv
+
+name;surname;phone;email;average_score;scholarship
+حمید;سعیدی;+7(901)-111-22-33;h.saeedi@lib.com;4.2;True
+مریم;حسینی;+7(950)-987-65-43;m.hosseini@lib.com;3.9;False
+جمال;موسوی;+7(999)-000-00-00;j.mosavi@lib.com;4.8;True
