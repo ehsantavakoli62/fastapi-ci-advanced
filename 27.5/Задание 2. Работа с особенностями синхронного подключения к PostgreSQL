@@ -1,0 +1,115 @@
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+import requests
+import random
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql://myuser:mypassword@localhost:5432/skillbox_db"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# --- Модели ---
+class Coffee(db.Model):
+    __tablename__ = "coffee"
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(200))
+    description = db.Column(db.String(200))
+    reviews = db.Column(db.ARRAY(db.String))
+
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    has_sale = db.Column(db.Boolean, default=False)
+    address = db.Column(db.JSON)
+    coffee_id = db.Column(db.Integer, db.ForeignKey("coffee.id"))
+    coffee = db.relationship("Coffee", backref="users")
+
+# --- Инициализация данных ---
+@app.before_first_request
+def init_data():
+    db.create_all()
+
+    # Создаем сорт кофе через DummyJSON API
+    coffee_response = requests.get("https://dummyjson.com/products/search?q=coffee").json()
+    if coffee_response['products']:
+        coffee_data = coffee_response['products'][0]
+        reviews_list = [review['comment'] for review in coffee_data.get('reviews', []) if 'comment' in review]
+        coffee = Coffee(
+            title=coffee_data['title'],
+            category=coffee_data.get('category', ''),
+            description=coffee_data.get('description', ''),
+            reviews=reviews_list
+        )
+        db.session.add(coffee)
+        db.session.commit()
+
+        # Создаем 10 пользователей
+        for i in range(10):
+            dummy_user = requests.get("https://dummyjson.com/users").json()['users']
+            u = random.choice(dummy_user)
+            user = User(
+                name=u['firstName'],
+                has_sale=random.choice([True, False]),
+                address=u['address'],
+                coffee_id=coffee.id
+            )
+            db.session.add(user)
+        db.session.commit()
+
+# --- Роуты ---
+
+# Добавление пользователя
+@app.route("/add_user", methods=["POST"])
+def add_user():
+    data = request.json
+    coffee = Coffee.query.filter_by(id=data['coffee_id']).first()
+    if not coffee:
+        return jsonify({"error": "Coffee not found"}), 404
+    user = User(
+        name=data['name'],
+        has_sale=data.get('has_sale', False),
+        address=data.get('address', {}),
+        coffee_id=coffee.id
+    )
+    db.session.add(user)
+    db.session.commit()
+    return jsonify({
+        "id": user.id,
+        "name": user.name,
+        "coffee": {
+            "title": coffee.title,
+            "category": coffee.category,
+            "description": coffee.description
+        }
+    })
+
+# Поиск кофе по названию (полнотекстовый поиск)
+@app.route("/search_coffee", methods=["GET"])
+def search_coffee():
+    name = request.args.get("name", "")
+    coffees = Coffee.query.filter(Coffee.title.ilike(f"%{name}%")).all()
+    result = [{"id": c.id, "title": c.title, "category": c.category, "description": c.description} for c in coffees]
+    return jsonify(result)
+
+# Список уникальных заметок к кофе
+@app.route("/unique_reviews", methods=["GET"])
+def unique_reviews():
+    coffees = Coffee.query.all()
+    unique_comments = set()
+    for c in coffees:
+        if c.reviews:
+            unique_comments.update(c.reviews)
+    return jsonify(list(unique_comments))
+
+# Список пользователей по стране
+@app.route("/users_by_country", methods=["GET"])
+def users_by_country():
+    country = request.args.get("country")
+    users = User.query.filter(User.address['country'].astext == country).all()
+    result = [{"id": u.id, "name": u.name, "address": u.address} for u in users]
+    return jsonify(result)
+
+if __name__ == "__main__":
+    app.run(debug=True)
