@@ -1,0 +1,30 @@
+from flask import Flask, request, make_response
+
+app = Flask(__name__)
+
+HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <title>Title</title>
+</head>
+<body>
+{user_input}
+</body>
+</html>
+"""
+
+@app.route("/xss_test", methods=["GET"])
+def xss_test():
+    user_input = request.args.get("input", "")
+    content = HTML.format(user_input=user_input)
+    response = make_response(content)
+    
+    # --- Добавляем Content Security Policy ---
+    # Запрещаем исполнение inline-скриптов
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self';"
+    return response
+
+if __name__ == "__main__":
+    app.run(debug=True)
