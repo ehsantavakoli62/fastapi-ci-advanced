@@ -1,0 +1,54 @@
+# test_api.py
+import pytest
+from datetime import datetime
+
+@pytest.mark.parametrize("url", [
+    "/clients",
+    "/clients/1"
+])
+def test_get_methods(client, url):
+    response = client.get(url)
+    assert response.status_code == 200
+
+def test_create_client(client):
+    response = client.post("/clients", json={
+        "name": "Alice",
+        "surname": "Smith",
+        "credit_card": "9876543210",
+        "car_number": "XYZ789"
+    })
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["name"] == "Alice"
+
+def test_create_parking(client):
+    response = client.post("/parkings", json={
+        "address": "New Street",
+        "opened": True,
+        "count_places": 10
+    })
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data["address"] == "New Street"
+
+@pytest.mark.parking
+def test_enter_parking(client, db):
+    # Получаем существующего клиента и парковку
+    client_obj = db.session.query(db.Model).filter_by(name="John").first()
+    parking_obj = db.session.query(db.Model).filter_by(address="Test Street").first()
+    response = client.post("/client_parkings", json={"client_id": client_obj.id, "parking_id": parking_obj.id})
+    assert response.status_code == 201
+    db.session.refresh(parking_obj)
+    assert parking_obj.count_available_places == 4  # уменьшилось
+
+@pytest.mark.parking
+def test_exit_parking(client, db):
+    client_obj = db.session.query(db.Model).filter_by(name="John").first()
+    parking_obj = db.session.query(db.Model).filter_by(address="Test Street").first()
+    response = client.delete("/client_parkings", json={"client_id": client_obj.id, "parking_id": parking_obj.id})
+    assert response.status_code == 200
+    db.session.refresh(parking_obj)
+    assert parking_obj.count_available_places == 5  # увеличилось
+    # Проверяем, что время выхода больше времени заезда
+    cp = db.session.query(db.Model).filter_by(client_id=client_obj.id, parking_id=parking_obj.id).first()
+    assert cp.time_out >= cp.time_in
