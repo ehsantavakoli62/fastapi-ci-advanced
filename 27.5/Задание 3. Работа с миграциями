@@ -1,0 +1,35 @@
+# --- Инициализация Alembic ---
+alembic init alembic
+
+# В alembic.ini указываем строку подключения к PostgreSQL
+# sqlalchemy.url = postgresql://myuser:mypassword@localhost:5432/skillbox_db
+
+# --- Шаг 1: init-миграция ---
+alembic revision --autogenerate -m "init migration"
+alembic upgrade head
+
+# --- Шаг 2: удаление атрибута user.has_sale ---
+alembic revision --autogenerate -m "remove has_sale column"
+# В файле миграции вручную удаляем колонку has_sale:
+# op.drop_column('users', 'has_sale')
+alembic upgrade head
+
+# --- Шаг 3: откат миграции ---
+alembic downgrade -1
+
+# --- Шаг 4: добавление атрибута user.surname ---
+alembic revision --autogenerate -m "add surname column"
+# В файле миграции добавляем:
+# op.add_column('users', sa.Column('surname', sa.String(length=50)))
+alembic upgrade head
+
+# --- Шаг 5: имитация конфликтной миграции (user.patronomic) ---
+alembic revision --autogenerate -m "add patronomic column"
+# В файле миграции вручную указываем down_revision = "<ид миграции из п.2>"
+# op.add_column('users', sa.Column('patronomic', sa.String(length=50)))
+alembic upgrade head
+
+# --- Решение конфликта ---
+# Если Alembic ругается на конфликт, используем команду для слияния:
+alembic merge -m "merge conflicting migrations" <id_миграции_из_п.4> <id_миграции_из_п.5>
+alembic upgrade head
