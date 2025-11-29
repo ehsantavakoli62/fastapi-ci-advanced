@@ -1,4 +1,0 @@
-# requirements.txt
-Flask
-prometheus-flask-exporter
-gunicorn # برای اجرای حرفه‌ای (در اینجا با python app.py اجرا می‌شود)
